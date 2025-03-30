@@ -1,0 +1,62 @@
+次に取得した記事のhtmlに対して，情報をjson形式でまとめたい．まとめる内容は次のようなまとめ方を行う．
+
+例：取得したarticlesの一つ
+<article id="item-thumbnail-1" class="item item-ordinary">
+    <div class="thumbnail-title-wrap">
+      <a id="thumbnail-id-63326_286" href="/main/html/rd/p/000000286.000063326.html" class="link-thumbnail link-thumbnail-ordinary" style="background-image:url(/i/63326/286/thumb/118x78/d63326-286-3d0733d65134306aebeb-8.jpg)" title="大人気の《炙り寿司》！3月31日(月)～平日5日間限定！小僧寿し『炙り三昧フェア』を開催します！">
+            </a>
+      <h3 class="title-item title-item-ordinary">
+        <a href="/main/html/rd/p/000000286.000063326.html" class="link-title-item link-title-item-ordinary thumbnail-title">大人気の《炙り寿司》！3月31日(月)～平日5日間限定！小僧寿し『炙り三昧フェア』を開催します！</a>
+      </h3>
+    </div>
+        <time datetime="2025-03-30T20:00:08+0900" class="time-release time-release-ordinary icon-time-release-svg">
+          12分前
+      </time>
+        <a href="/main/html/searchrlp/company_id/63326" class="link-name-company name-company name-company-ordinary thumbnail-name-company" title="KOZOホールディングスのプレスリリース">
+          KOZOホールディングス
+      </a>
+    </article>
+
+
+整理したjsonの例：
+{
+"記事タイトル": "大人気の《炙り寿司》！3月31日(月)～平日5日間限定！小僧寿し『炙り三昧フェア』を開催します！", 
+"詳細":"", 
+"詳細URL":"/main/html/rd/p/000000286.000063326.html", 
+"企業概要URL":"/main/html/searchrlp/company_id/63326", 
+"公開日": "2025-03-30T20:00:08+0900", 
+"企業名":"", 
+"企業HP":"",
+"メール":"",
+"住所":"", 
+"種類":"", 
+"ビジネスカテゴリ":""
+}
+
+#============================================================================================================================================#
+
+次に取得した記事のhtmlに対して，情報をjson形式でまとめたい．まとめる内容は次のようなまとめ方を行う．
+
+ <article class="item item-ordinary">
+    <div class="thumbnail-title-wrap">
+        <a class="link-thumbnail link-thumbnail-ordinary" href="/main/html/rd/p/000000251.000120285.html" title="「ハタラクエール2025」で最高位の「優良福利厚生法人（総合）」を受賞" style="background-image: url(&quot;/i/120285/251/thumb/118x78/d120285-251-67c233e3b53398c9742e-0.jpg&quot;);"></a>
+        <h3 class="title-item title-item-ordinary"><a class="link-title-item link-title-item-ordinary thumbnail-title" href="/main/html/rd/p/000000251.000120285.html">「ハタラクエール2025」で最高位の「優良福利厚生法人（総合）」を受賞</a></h3>
+    </div>
+        <a class="link-name-company name-company name-company-ordinary" href="/main/html/searchrlp/company_id/120285">三菱電機株式会社</a>
+        <time class="time-release time-release-ordinary icon-time-release-svg" datetime="2025-03-28T17:38:28+09:00">2025年3月28日 17時38分</time>
+    </article>
+
+整理したjsonの例：
+{
+"記事タイトル": "「ハタラクエール2025」で最高位の「優良福利厚生法人（総合）」を受賞", 
+"詳細":"", 
+"詳細URL":"/main/html/rd/p/000000251.000120285.html", 
+"企業概要URL":"/main/html/searchrlp/company_id/120285", 
+"公開日": "2025-03-28T17:38:28+09:00", 
+"企業名":"", 
+"企業HP":"",
+"メール":"",
+"住所":"", 
+"種類":"", 
+"ビジネスカテゴリ":""
+}
