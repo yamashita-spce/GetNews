@@ -16,10 +16,15 @@ import get_detail as gd
 config = configparser.ConfigParser()
 config.read("config.ini")
 
+CONFIG = "DEFAULT"
+
 # rootディレクトリ
-BASE_URL = config["DEFAULT"]["BASE_URL"]
+BASE_URL = config[CONFIG]["BASE_URL"]
 #　スクレイピング対象のURL
-LISTING_URL = f"{BASE_URL}" + config["DEFAULT"]["LISTING_URL"]
+LISTING_URL = f"{BASE_URL}" + config[CONFIG]["LISTING_URL"]
+# カテゴリーとキーワードの取得
+CATEGORY = [category.strip() for category in config[CONFIG]["PARCE_CATEGORY"].split(",")] if config[CONFIG]["PARCE_CATEGORY"] else []
+KEYWORD = [keyword.strip() for keyword in config[CONFIG]["PARCE_KEYWORD"].split(",")] if config[CONFIG]["PARCE_KEYWORD"] else []
 
 
 def get_articles(threshold_date_str):
@@ -63,10 +68,10 @@ def get_articles(threshold_date_str):
             
             # 最後の記事の公開日時が閾値よりも前ならループ終了
             if pub_date < threshold_date_aware:
-                print("閾値より前の記事が見つかったため、ループを終了します。")
+                print("[*]スクレイピング完了")
                 break
             
-            print("[*]「もっと見る」ボタンをクリックして、次のページを取得します。")
+            print("     「もっと見る」ボタンをクリックして、次のページを取得中．．．")
             
             try:
                 more_button = driver.find_element(By.XPATH, "//a[contains(text(), 'もっと見る')]")
@@ -90,8 +95,10 @@ def get_articles(threshold_date_str):
 
 
 if __name__ == "__main__":
-    threshold = "2025-03-29"
-    print("[*]URL:", LISTING_URL)
+    threshold = "2025-03-30"
+    print("[*]エントリーURL:", LISTING_URL)
+    print("[*]抽出カテゴリ:", CATEGORY)
+    print("[*]抽出キーワード:", KEYWORD)
     print("[*]閾値:", threshold)
     print("[*]記事取得を開始します...")
     
@@ -103,34 +110,49 @@ if __name__ == "__main__":
     tokun_num = 0
     total_articles = len(articles_list)
     
+
+    
     # 取得した記事を1つずつ処理
-    for i, article in enumerate(articles_list[0:5]):
+    for i, article in enumerate(articles_list[:5]):
         print(f"\n処理中: {i + 1}/{total_articles}")
-        
+     
         # 記事HTMLを解析
         article_dict = ttj.parse_list_article(article)
         
-        # 詳細URLを取得
+       
+        # 詳細URL
         detail_url = BASE_URL + article_dict["詳細URL"]
         
         # 詳細情報を取得
-        print("     [*]記事タイトル:", article_dict["記事タイトル"])
+        print("     [*]記事:", article_dict["記事タイトル"][:25], "...")
+        
         if detail_url:
             # 詳細情報を取得する関数を呼び出す
-            detail_info, tokun = gd.get_detail(detail_url)
+            # adder : ["tokun数": int, "フィルタリング結果": bool]
+            detail_info, adder = gd.get_detail(detail_url, CONFIG)
+            
+            # フィルタリング
+            if adder["フィルタリング"]:
+                print("     [WARNING]フィルタリングにより、スキップされました")
+                continue
+            
+            # 結果をまとめる
             result.append(detail_info)
-            tokun_num += tokun
+            tokun_num += adder["トークン数"]
             print("     [*]詳細情報:", detail_info)
-            print("     [*]消費したtokun数:", tokun)
+            print("     [*]消費したtokun数:", adder["トークン数"])
             # print(detail_info)
             # ここで詳細情報を処理するコードを書くことができます   
 
         else:
             print("     [*]詳細URLが取得できませんでした。")
 
-    print("[*]トークン料金:", tokun_num*2.5*150/1000000, "円")
+    print("\n[*]トークン料金(150円/$, 2.5$/1Mtokun):", tokun_num*2.5*150/1000000, "円")
     
-    #gmail APIs 
+    #gmail APIs
+    
+    
+    
     
     
 

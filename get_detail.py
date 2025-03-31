@@ -8,26 +8,39 @@ import re
 config = configparser.ConfigParser()
 config.read("config.ini")
 
-client = OpenAI(api_key=config["DEFAULT"]["OPENAI_API_KEY"])
-MODEL = config["DEFAULT"]["MODEL"]
- 
- 
+
 # 詳細URLから記事の詳細，企業情報，カテゴリー情報を取得する関数
-def get_detail(url):
+def get_detail(url, CONFIG):
     """
     指定されたURLからHTMLを取得し、企業情報とカテゴリー情報をパースして辞書形式で返す。
     """
+    # Open APIの初期化
+    client = OpenAI(api_key=config[CONFIG]["OPENAI_API_KEY"])
+    model = config[CONFIG]["MODEL"]
+    
+    # カテゴリーとキーワードの取得
+    CATEGORY = [category.strip() for category in config[CONFIG]["PARCE_CATEGORY"].split(",")] if config[CONFIG]["PARCE_CATEGORY"] else []
+    KEYWORD = [keyword.strip() for keyword in config[CONFIG]["PARCE_KEYWORD"].split(",")] if config[CONFIG]["PARCE_KEYWORD"] else []
+    
     # 企業情報を取得
     company_info = parce_company_details(url)
     
     # カテゴリー情報を取得
     category_info = parce_category_details(url)
     
+    # カテゴリーとキーワードのフィルタリング
+    # if CATEGORY:
+    #     if not any(cat in CATEGORY for cat in category_info["ビジネスカテゴリ"]):
+    #         return {}, {"トークン数": 0, "フィルタリング": True}
+    # if KEYWORD:
+    #     if not any(kw in KEYWORD for kw in category_info["キーワード"]):
+    #         return {}, {"トークン数": 0, "フィルタリング": True}
+    
     # プレスリリースの詳細情報をGPT APIを用いて取得
-    press_release_info, tokun_num = details_inf(url)
+    press_release_info, tokun_num = details_inf(url, client, model)
 
     # 結果をまとめる
-    return {**company_info, **category_info, **press_release_info}, tokun_num
+    return {**company_info, **category_info, **press_release_info}, {"トークン数":tokun_num, "フィルタリング": False}
   
 
 # 企業情報を取得する関数
@@ -42,50 +55,60 @@ def parce_company_details(url):
 
     # クラス属性が "table_container__cTu_r table_screen__WRwml" の<dl>を検索
     # 会社概要が記載されているクラス名
-    dl_tag = soup.find("dl", class_="table_container__cTu_r table_screen__WRwml")
-    
+    try :
+        dl_tag = soup.find("dl", class_="table_container__cTu_r table_screen__WRwml")
 
-    # 結果用の辞書を初期化
-    result = {
-        "企業名": "",
-        "企業HP": "",
-        "電話番号": "",
-        "住所": ""
-    }
+        # 結果用の辞書を初期化
+        result = {
+            "企業名": "",
+            "企業HP": "",
+            "電話番号": "",
+            "住所": ""
+        }
 
-    # <dl> 内の <dt> と <dd> のペアを取得
-    # dt_dd_pairs は [(dt要素, dd要素), ...] のリストになる
-    dt_tags = dl_tag.find_all("dt")
-    dd_tags = dl_tag.find_all("dd")
+        # <dl> 内の <dt> と <dd> のペアを取得
+        # dt_dd_pairs は [(dt要素, dd要素), ...] のリストになる
+        dt_tags = dl_tag.find_all("dt")
+        dd_tags = dl_tag.find_all("dd")
 
-    # dt_tags と dd_tags の順序が対応していると仮定して進める
-    # （実際のHTMLでは <dt> と <dd> の順番が正しくペアになっているはず）
-    for dt_tag, dd_tag in zip(dt_tags, dd_tags):
-        dt_text = dt_tag.get_text(strip=True)
-        dd_text = dd_tag.get_text(strip=True)
+        # dt_tags と dd_tags の順序が対応していると仮定して進める
+        # （実際のHTMLでは <dt> と <dd> の順番が正しくペアになっているはず）
+        for dt_tag, dd_tag in zip(dt_tags, dd_tags):
+            dt_text = dt_tag.get_text(strip=True)
+            dd_text = dd_tag.get_text(strip=True)
 
-        if dt_text == "URL":
-            # URL→企業HP
-            # aタグがあれば、hrefまたはテキストのどちらを格納するかは要件次第
-            a_tag = dd_tag.find("a")
-            if a_tag and a_tag.has_attr("href"):
-                result["企業HP"] = a_tag["href"]
-            else:
-                # なければ dd_text 全体を入れる
-                result["企業HP"] = dd_text
+            if dt_text == "URL":
+                # URL→企業HP
+                # aタグがあれば、hrefまたはテキストのどちらを格納するかは要件次第
+                a_tag = dd_tag.find("a")
+                if a_tag and a_tag.has_attr("href"):
+                    result["企業HP"] = a_tag["href"]
+                else:
+                    # なければ dd_text 全体を入れる
+                    result["企業HP"] = dd_text
 
-        elif dt_text == "本社所在地":
-            result["住所"] = dd_text.replace("\n", " ")
+            elif dt_text == "本社所在地":
+                result["住所"] = dd_text.replace("\n", " ")
 
-        elif dt_text == "電話番号":
-            result["電話番号"] = dd_text
-    
-    # 企業名は <dl> タグの外にある <a> タグから取得
-    company_name_tag = soup.find("a", class_="company-name_companyName__xoNVA")
-    
-    result["企業名"] = company_name_tag.get_text(strip=True) if company_name_tag else ""
+            elif dt_text == "電話番号":
+                result["電話番号"] = dd_text
+        
+        # 企業名は <dl> タグの外にある <a> タグから取得
+        company_name_tag = soup.find("a", class_="company-name_companyName__xoNVA")
+        
+        result["企業名"] = company_name_tag.get_text(strip=True) if company_name_tag else ""
 
-    return result
+        return result
+        
+    except Exception as e:
+        print("     [ERROR]企業情報の取得に失敗しました。", e)
+        with open("error_log.txt", "a") as f:
+            f.write(f"=======================================================\n")
+            f.write(f"URL: {url}\n\n")
+            f.write(f"エラー内容: {e}\n\n")
+            f.write(f"HTML: {soup}\n\n")
+        
+        return result
 
 
 # 企業カテゴリを取得する関数
@@ -110,52 +133,64 @@ def parce_category_details(url):
         "キーワード": []
     }
 
-    # <dl> の中にある複数の <div class="table_row__O3IbK ..."> が1行に相当
-    rows = dl_tag.find_all("div", class_="table_row__O3IbK table_rowScreen__inKSh")
+    try:
+        # <dl> の中にある複数の <div class="table_row__O3IbK ..."> が1行に相当
+        rows = dl_tag.find_all("div", class_="table_row__O3IbK table_rowScreen__inKSh")
+        
+        for row in rows:
+            dt_tag = row.find("dt", class_="table_term__ym03J")
+            dd_tag = row.find("dd", class_="table_definition__03NU_")
+            if not dt_tag or not dd_tag:
+                continue
+            
+            key_text = dt_tag.get_text(strip=True)
+            # 例：「種類」「ビジネスカテゴリ」「キーワード」
+            
+            if key_text == "種類":
+                # 例：「その他」
+                # <span class="table_item__NmAWQ"><a href=...>その他</a></span>
+                # → a タグのテキストを取得
+                a_tag = dd_tag.find("a")
+                if a_tag:
+                    result["種類"] = a_tag.get_text(strip=True)
+
+            elif key_text == "ビジネスカテゴリ":
+                # 複数のカテゴリがある場合も想定 => <span><a>カテゴリ</a></span> が複数
+                # ここでは1件か複数かにかかわらず同じ書き方で対応
+                span_tags = dd_tag.find_all("span", class_="table_item__NmAWQ")
+                categories = []
+                for span in span_tags:
+                    a_tag = span.find("a")
+                    if a_tag:
+                        categories.append(a_tag.get_text(strip=True))
+                result["ビジネスカテゴリ"] = categories
+            
+            elif key_text == "キーワード":
+                # 複数キーワードがある場合 => <span><a>キーワード</a></span> が複数
+                keywords = []
+                span_tags = dd_tag.find_all("span", class_="table_item__NmAWQ")
+                for span in span_tags:
+                    a_tag = span.find("a")
+                    if a_tag:
+                        keywords.append(a_tag.get_text(strip=True))
+                result["キーワード"] = keywords
+            
+            else:
+                # 「関連リンク」など、今回不要な行はスキップ
+                pass
+
+        return result
     
-    for row in rows:
-        dt_tag = row.find("dt", class_="table_term__ym03J")
-        dd_tag = row.find("dd", class_="table_definition__03NU_")
-        if not dt_tag or not dd_tag:
-            continue
-        
-        key_text = dt_tag.get_text(strip=True)
-        # 例：「種類」「ビジネスカテゴリ」「キーワード」
-        
-        if key_text == "種類":
-            # 例：「その他」
-            # <span class="table_item__NmAWQ"><a href=...>その他</a></span>
-            # → a タグのテキストを取得
-            a_tag = dd_tag.find("a")
-            if a_tag:
-                result["種類"] = a_tag.get_text(strip=True)
-
-        elif key_text == "ビジネスカテゴリ":
-            # 複数のカテゴリがある場合も想定 => <span><a>カテゴリ</a></span> が複数
-            # ここでは1件か複数かにかかわらず同じ書き方で対応
-            span_tags = dd_tag.find_all("span", class_="table_item__NmAWQ")
-            categories = []
-            for span in span_tags:
-                a_tag = span.find("a")
-                if a_tag:
-                    categories.append(a_tag.get_text(strip=True))
-            result["ビジネスカテゴリ"] = categories
-        
-        elif key_text == "キーワード":
-            # 複数キーワードがある場合 => <span><a>キーワード</a></span> が複数
-            keywords = []
-            span_tags = dd_tag.find_all("span", class_="table_item__NmAWQ")
-            for span in span_tags:
-                a_tag = span.find("a")
-                if a_tag:
-                    keywords.append(a_tag.get_text(strip=True))
-            result["キーワード"] = keywords
-        
-        else:
-            # 「関連リンク」など、今回不要な行はスキップ
-            pass
-
-    return result
+    except Exception as e:
+        print("     [ERROR]企業情報の取得に失敗しました。", e)
+        with open("error_log.txt", "a") as f:
+            f.write(f"=======================================================\n")
+            f.write(f"URL: {url}\n\n")
+            f.write(f"エラー内容: {e}\n\n")
+            f.write(f"HTML: {soup}\n\n")
+            
+        # 例外が発生した場合は空の辞書を返す
+        return result
 
 
 # プレスリリースの詳細情報を取得する関数
@@ -171,14 +206,26 @@ def fetch_press_release_text(url):
     response.raise_for_status()
     soup = BeautifulSoup(response.text, "html.parser")
 
-    # <div id="press-release-body"> のテキストを取得
-    body_div = soup.find("div", id="press-release-body")
-    article_text = body_div.get_text(separator="\n").strip() if body_div else ""
+    try:
+        # <div id="press-release-body"> のテキストを取得
+        body_div = soup.find("div", id="press-release-body")
+        article_text = body_div.get_text(separator="\n").strip() if body_div else ""
 
-    return article_text
+        return article_text
+        
+    except Exception as e:
+        print("     [ERROR]プレスリリースの詳細情報の取得に失敗しました。", e)
+        with open("error_log.txt", "a") as f:
+            f.write(f"=======================================================\n")
+            f.write(f"URL: {url}\n\n")
+            f.write(f"エラー内容: {e}\n\n")
+            f.write(f"HTML: {soup}\n\n")
+        
+        # 例外が発生した場合は空文字を返す
+        return ""
+        
 
-
-def summarize_and_extract_email_with_gpt4(article_text, approx_length=100, counter=0, token_num=0):
+def summarize_and_extract_email_with_gpt4(article_text, client, model, approx_length=100, counter=0, token_num=0):
     """
     GPT-4 を用いて、以下の2つを行う:
       1) 文章をおよそ `approx_length` 文字で要約
@@ -214,7 +261,7 @@ def summarize_and_extract_email_with_gpt4(article_text, approx_length=100, count
 """
 
     completion = client.chat.completions.create(
-        model="gpt-4o",
+        model=model,
         messages=[
             {"role": "developer", "content": system_message},
             {"role": "user", "content": user_message}
@@ -229,13 +276,14 @@ def summarize_and_extract_email_with_gpt4(article_text, approx_length=100, count
         json_data = json.loads(return_data)
         return json_data["詳細"], json_data["メール"], token_num + completion.usage.total_tokens 
     except:
-        print("[EEROR]GPTからの応答に問題がありました。もう一度実行します。")
-        print("[*]応答内容:", return_data)
+        print("     [EEROR]GPTからの応答に問題がありました。もう一度実行します。")
+        print("     [*]応答内容:", return_data)
         return summarize_and_extract_email_with_gpt4(article_text, counter=counter+1, token_num=token_num + completion.usage.total_tokens)
     
 
 # 詳細情報を取得する関数(OpenAI APIを使用)
-def details_inf(url):
+def details_inf(url, client, model):
+    
     # 取得対象のURL
     # url = "https://prtimes.jp/main/html/rd/p/000000251.000120285.html"  # 例
 
@@ -244,7 +292,7 @@ def details_inf(url):
     article_text = re.sub(r"\s+", " ", article_text)  # 余分な空白を削除
    
     # 2) GPT-4で要約とメール抽出
-    summary, email, tokun_num = summarize_and_extract_email_with_gpt4(article_text, approx_length=100)
+    summary, email, tokun_num = summarize_and_extract_email_with_gpt4(article_text, client, model)
 
     # 3) 結果を最終JSON構造へ
     result = {

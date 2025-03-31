@@ -3,7 +3,11 @@
 *.pyo
 *.pyd
 *.egg
+.python-version
+
+credentials.json
 
 *.ini
 /.venv
 /.env
+
